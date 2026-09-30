@@ -1,0 +1,15 @@
+{% extends "quiz/base.html" %}
+{% block content %}
+<div class="card">
+  <h1>Ready to battle, {{ user.username }}?</h1>
+  <p class="muted">10 questions · 15 seconds each · faster answers score more.</p>
+  <a class="btn" href="{% url 'create_room' %}">Create room</a>
+</div>
+<div class="card">
+  <h2>Join a friend</h2>
+  <form method="get" action="{% url 'join_room' %}">
+    <input name="code" placeholder="Enter room code" maxlength="10" required>
+    <button class="btn">Join</button>
+  </form>
+</div>
+{% endblock %}

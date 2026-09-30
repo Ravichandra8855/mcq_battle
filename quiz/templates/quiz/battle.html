@@ -1,0 +1,102 @@
+{% extends "quiz/base.html" %}
+{% block title %}Room {{ code }}{% endblock %}
+{% block content %}
+<style>
+  .scores { display:flex; justify-content:space-between; gap:12px; margin-bottom:16px; }
+  .player { flex:1; background:#0f172a; padding:12px; border-radius:10px; text-align:center; }
+  .player.me { outline:2px solid var(--brand); } .player b { font-size:1.6em; display:block; }
+  .bar { height:8px; background:#334155; border-radius:4px; overflow:hidden; margin:12px 0 20px; }
+  .bar div { height:100%; width:100%; background:var(--brand); transition:width 1s linear; }
+  .opt { display:block; width:100%; text-align:left; margin-bottom:10px; padding:14px; border-radius:10px; border:2px solid #334155;
+         background:#0f172a; color:var(--text); font-size:1em; cursor:pointer; }
+  .opt:hover:not(:disabled) { border-color:var(--brand); }
+  .opt.selected { border-color:var(--brand); } .opt.correct { border-color:var(--ok); background:#14532d; } .opt.wrong { border-color:var(--bad); background:#7f1d1d; }
+  .hidden { display:none; } .big { font-size:1.4em; }
+</style>
+
+<div class="card" id="lobby">
+  <h2>Room code: <span style="color:#818cf8">{{ code }}</span></h2>
+  <p class="muted">Share this code with your opponent. Waiting for them to join…</p>
+  <div id="lobbyPlayers"></div>
+  <p id="err" class="muted" style="color:#ef4444"></p>
+</div>
+
+<div class="card hidden" id="game">
+  <div class="scores" id="scores"></div>
+  <div class="muted" id="qmeta"></div>
+  <div class="bar"><div id="timer"></div></div>
+  <h2 id="qtext"></h2>
+  <div id="options"></div>
+  <p id="status" class="muted"></p>
+</div>
+
+<div class="card hidden" id="result">
+  <h1 id="resTitle"></h1>
+  <div class="scores" id="finalScores"></div>
+  <a class="btn" href="/">Play again</a> <a class="btn" style="background:#334155" href="{% url 'leaderboard' %}">Leaderboard</a>
+</div>
+
+<script>
+const code = "{{ code }}";
+const proto = location.protocol === "https:" ? "wss" : "ws";
+const ws = new WebSocket(`${proto}://${location.host}/ws/battle/${code}/`);
+let myId = null, answered = false, tick = null;
+const $ = id => document.getElementById(id);
+const show = id => ["lobby", "game", "result"].forEach(x => $(x).classList.toggle("hidden", x !== id));
+
+function renderScores(el, players) {
+  el.innerHTML = players.map(p =>
+    `<div class="player ${p.id === myId ? "me" : ""}">${p.name}${p.id === myId ? " (you)" : ""}<b>${p.score}</b></div>`).join("");
+}
+
+ws.onmessage = e => {
+  const m = JSON.parse(e.data);
+  if (m.type === "you") myId = m.id;
+  else if (m.type === "error") { $("err").textContent = m.message; }
+  else if (m.type === "lobby") {
+    $("lobbyPlayers").innerHTML = m.players.map(p => `<p class="big">👤 ${p.name}</p>`).join("");
+  }
+  else if (m.type === "start") { show("game"); $("status").textContent = "Get ready…"; $("qtext").textContent = "Battle starting!"; $("options").innerHTML = ""; }
+  else if (m.type === "question") {
+    answered = false; show("game");
+    $("qmeta").textContent = `Question ${m.index} / ${m.total}`;
+    $("qtext").textContent = m.text; $("status").textContent = "";
+    $("options").innerHTML = Object.entries(m.options).map(([k, v]) =>
+      `<button class="opt" data-k="${k}"><b>${k}.</b> ${v}</button>`).join("");
+    document.querySelectorAll(".opt").forEach(b => b.onclick = () => {
+      if (answered) return; answered = true;
+      ws.send(JSON.stringify({ type: "answer", choice: b.dataset.k }));
+      b.classList.add("selected");
+      document.querySelectorAll(".opt").forEach(x => x.disabled = true);
+      $("status").textContent = "Answer locked in. Waiting for opponent…";
+    });
+    startTimer(m.time);
+  }
+  else if (m.type === "reveal") {
+    clearInterval(tick);
+    renderScores($("scores"), m.players);
+    const mine = m.players.find(p => p.id === myId).answer;
+    document.querySelectorAll(".opt").forEach(b => {
+      b.disabled = true;
+      if (b.dataset.k === m.correct) b.classList.add("correct");
+      else if (b.dataset.k === mine) b.classList.add("wrong");
+    });
+    $("status").textContent = mine === m.correct ? "✅ Correct!" : (mine ? "❌ Wrong" : "⏰ Time's up");
+  }
+  else if (m.type === "finished") {
+    clearInterval(tick); show("result");
+    renderScores($("finalScores"), m.players);
+    $("resTitle").textContent = m.winner === null ? "🤝 It's a draw!" :
+      (m.winner === myId ? (m.forfeit ? "🏆 You win! Opponent left." : "🏆 You win!") : "😢 You lost");
+  }
+};
+ws.onclose = () => { if ($("result").classList.contains("hidden") && !$("err").textContent) $("err").textContent = "Disconnected."; };
+
+function startTimer(sec) {
+  clearInterval(tick); let left = sec; const bar = $("timer");
+  bar.style.transition = "none"; bar.style.width = "100%";
+  setTimeout(() => { bar.style.transition = "width 1s linear"; }, 50);
+  tick = setInterval(() => { left--; bar.style.width = Math.max(0, left / sec * 100) + "%"; if (left <= 0) clearInterval(tick); }, 1000);
+}
+</script>
+{% endblock %}

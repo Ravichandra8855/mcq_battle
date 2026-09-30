@@ -1,0 +1,24 @@
+{% extends "quiz/base.html" %}
+{% block content %}
+<div class="card">
+  <h2>🏆 Leaderboard</h2>
+  <table><thead><tr><th>#</th><th>Player</th><th>Wins</th><th>Played</th></tr></thead>
+  <tbody id="rows"><tr><td colspan="4" class="muted">Loading…</td></tr></tbody></table>
+</div>
+<div class="card">
+  <h2>My recent matches</h2>
+  <table><tbody id="mine"></tbody></table>
+</div>
+<script>
+fetch("/api/leaderboard/").then(r => r.json()).then(d => {
+  document.getElementById("rows").innerHTML = d.length ? d.map((u, i) =>
+    `<tr><td>${i+1}</td><td>${u.username}</td><td>${u.wins}</td><td>${u.played}</td></tr>`).join("")
+    : '<tr><td colspan="4" class="muted">No matches yet.</td></tr>';
+});
+fetch("/api/matches/").then(r => r.json()).then(d => {
+  const list = d.results || d;
+  document.getElementById("mine").innerHTML = list.map(m =>
+    `<tr><td>${m.player1} vs ${m.player2}</td><td>${m.score1} - ${m.score2}</td><td>${m.winner ? "🏅 " + m.winner : "Draw"}</td></tr>`).join("");
+});
+</script>
+{% endblock %}
