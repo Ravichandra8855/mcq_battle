@@ -1,3 +1,6 @@
+https://mcq-battle-1bhn.onrender.com
+
+
 # ⚔️ 1v1 MCQ Battle – Real-Time Quiz Competition Platform
 
 Python · Django · Django Channels (WebSockets) · Django REST Framework · HTML/CSS/JS
